@@ -140,7 +140,7 @@ function upload(entry) {
     paint(entry);
     poll(entry);
   };
-  xhr.onerror = () => fail(entry, 'Could not reach the app. Make sure Smallside is running and try again.');
+  xhr.onerror = () => fail(entry, 'Could not reach the app. Make sure PRCM Compressor is running and try again.');
   xhr.send(entry.file);
 }
 function addFiles(files) {

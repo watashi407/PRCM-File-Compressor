@@ -1,6 +1,6 @@
 # PRCM-File-Compressor
 
-Smallside is a minimalist file compression app.
+PRCM Compressor is a minimalist file compression app.
 
 A local file compressor with automatic format detection, a 4.8 MB target, and a strict 5 MB download limit. Drop multiple files, then download completed results while the rest process.
 
