@@ -32,6 +32,14 @@ Open http://127.0.0.1:8000. Files are processed locally. No cloud account or API
 
 The backend uses FastAPI, Pillow, PyMuPDF, and the FFmpeg binary provided by imageio-ffmpeg. Review their licenses before distributing the app, especially PyMuPDF's AGPL/commercial license and the bundled FFmpeg build.
 
+## Hosting
+
+The app accepts `prcm-file-compressor.vercel.app`, local addresses, and the exact hosts from Vercel's `VERCEL_URL`, `VERCEL_BRANCH_URL`, and `VERCEL_PROJECT_PRODUCTION_URL` environment variables. Add custom domains with a comma-separated `ALLOWED_HOSTS` environment variable, using hostnames without paths.
+
+Fixing the allowed hosts lets the interface load on Vercel. The current compression backend still requires a persistent server. Its job queue and temporary files are local to one running process. Vercel Functions can route later requests to other instances, and their [4.5 MB request/response limit](https://vercel.com/docs/functions/limitations) is smaller than the app's upload allowance and maximum output size.
+
+For public uploads, deploy the backend on a persistent server or redesign it around direct object-storage uploads, durable job storage, and a worker. The current 250 MB upload flow is not supported by a standalone Vercel Function. On a public server, files are processed on that server rather than the visitor's computer.
+
 ## Verify
 
 ```powershell

@@ -3,6 +3,10 @@ const input = $('#file-input');
 const dropzone = $('#dropzone');
 const queue = $('#queue');
 const entries = new Map();
+if (!['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)) {
+  const privacyLabel = document.querySelector('.panel-footer > span:first-child');
+  privacyLabel.lastChild.textContent = 'Files processed on this server';
+}
 const icons = {
   file: '<svg viewBox="0 0 24 24"><path d="M14 3H6v18h12V7l-4-4Z"/><path d="M14 3v5h4M9 12h6m-6 4h4"/></svg>',
   download: '<svg viewBox="0 0 24 24"><path d="M12 3v12m-4-4 4 4 4-4M5 16v5h14v-5"/></svg>',

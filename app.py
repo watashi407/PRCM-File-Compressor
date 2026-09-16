@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import shutil
 import tempfile
 import threading
@@ -49,8 +50,23 @@ async def lifespan(app):
     shutil.rmtree(ROOT, ignore_errors=True)
 
 
-app = FastAPI(title='Smallside', lifespan=lifespan)
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=['localhost', '127.0.0.1', '[::1]', 'testserver'])
+def allowed_hosts():
+    hosts = {'localhost', '127.0.0.1', '[::1]', 'testserver',
+             'prcm-file-compressor.vercel.app'}
+    # Vercel supplies exact deployment, branch, and production hostnames.
+    # Keep host validation enabled instead of trusting every vercel.app site.
+    for key in ('VERCEL_URL', 'VERCEL_BRANCH_URL', 'VERCEL_PROJECT_PRODUCTION_URL'):
+        value = os.environ.get(key, '').strip()
+        if value:
+            hostname = urlparse(value if '://' in value else 'https://' + value).hostname
+            if hostname:
+                hosts.add(hostname)
+    hosts.update(host.strip().lower() for host in os.environ.get('ALLOWED_HOSTS', '').split(',') if host.strip())
+    return sorted(hosts)
+
+
+app = FastAPI(title='PRCM Compressor', lifespan=lifespan)
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts())
 
 
 @app.middleware('http')
@@ -58,7 +74,7 @@ async def local_requests(request: Request, call_next):
     origin = request.headers.get('origin')
     if request.method not in ('GET', 'HEAD') and origin and urlparse(origin).netloc != request.headers.get('host'):
         from fastapi.responses import JSONResponse
-        return JSONResponse({'detail': 'Use the app on this computer to upload files.'}, status_code=403)
+        return JSONResponse({'detail': 'Upload files from the same address where you opened the app.'}, status_code=403)
     response = await call_next(request)
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['Referrer-Policy'] = 'no-referrer'
