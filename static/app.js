@@ -20,6 +20,7 @@ const icons = {
   close: '<svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>'
 };
 const size = (bytes) => bytes < 1_000_000 ? `${(bytes / 1000).toFixed(1)} KB` : `${(bytes / 1_000_000).toFixed(2)} MB`;
+const sizeInMB = (bytes) => bytes > 0 && bytes < 10_000 ? '<0.01 MB' : `${(bytes / 1_000_000).toFixed(2)} MB`;
 function element(tag, className, text) {
   const node = document.createElement(tag);
   node.className = className;
@@ -141,13 +142,17 @@ function paint(entry) {
   const name = element('p', 'file-name', file.name);
   name.title = file.name;
   const meta = element('div', 'file-meta');
-  meta.append(element('span', '', size(file.size)));
-  if (detected) meta.append(element('span', 'format-label', detected.format));
+  const originalSize = element('span', 'size-indicator original-size', `Original: ${sizeInMB(file.size)}`);
+  originalSize.title = `${file.size.toLocaleString()} bytes`;
+  meta.append(originalSize);
   if (result) {
-    meta.append(element('span', '', '→'), element('span', 'saving', size(result.size)));
+    const outputSize = element('span', 'size-indicator saving', `${result.size < file.size ? 'Compressed' : 'Output'}: ${sizeInMB(result.size)}`);
+    outputSize.title = `${result.size.toLocaleString()} bytes`;
+    meta.append(outputSize);
     const saved = Math.max(0, Math.min(99.9, Math.round((1 - result.size / file.size) * 100)));
     if (saved) meta.append(element('span', 'saving', `${saved}% smaller`));
   }
+  if (detected) meta.append(element('span', 'format-label', detected.format));
   main.append(name, meta);
   if (['waiting', 'uploading', 'queued', 'processing'].includes(state)) {
     const track = element('div', 'progress-track');

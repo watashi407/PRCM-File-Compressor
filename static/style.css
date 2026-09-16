@@ -71,3 +71,4 @@ body{padding-bottom:env(safe-area-inset-bottom)}
 @keyframes upload-spin{to{transform:rotate(360deg)}}
 @media(max-width:700px){.upload-status-icon{width:66px;height:66px;margin-bottom:20px}.upload-copy p{font-size:13px}.view-downloads{font-size:14px;min-height:48px}}
 @media(prefers-reduced-motion:reduce){.upload-spinner{animation:none!important}}
+.size-indicator{display:inline-block;padding:5px 8px;border-radius:5px;background:#edf5ef;white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:550}.original-size{background:#f0f2f4;color:#56616b}
