@@ -3,6 +3,8 @@ const input = $('#file-input');
 const dropzone = $('#dropzone');
 const queue = $('#queue');
 const entries = new Map();
+const idleUploadHeading = $('#upload-heading').innerHTML;
+let uploadSummaryKey = '';
 let apiBase = '';
 let uploadLimit = 250_000_000;
 let configError = '';
@@ -28,7 +30,54 @@ function refreshCount() {
   $('#queue-section').hidden = !entries.size;
   $('#file-count').textContent = entries.size;
   $('#clear').disabled = ![...entries.values()].some(entry => ['done', 'error'].includes(entry.state));
+  updateUploadArea();
   saveSession();
+}
+function updateUploadArea() {
+  const files = [...entries.values()];
+  const uploading = files.filter(entry => ['waiting', 'uploading'].includes(entry.state)).length;
+  const processing = files.filter(entry => ['queued', 'processing'].includes(entry.state)).length;
+  const done = files.filter(entry => entry.state === 'done').length;
+  const errors = files.filter(entry => entry.state === 'error').length;
+  const key = [uploading, processing, done, errors].join(':');
+  if (key === uploadSummaryKey) return;
+  uploadSummaryKey = key;
+  let state = 'idle';
+  let heading = '';
+  let description = 'Any file format. Automatically detected.';
+  let label = 'Choose files';
+  if (uploading || processing) {
+    state = 'processing';
+    heading = uploading ? (uploading === 1 ? 'Uploading your file…' : 'Uploading your files…') : 'Upload successful!';
+    description = uploading ? 'Keep this page open while your files upload.' : "We're compressing your file. Your download will appear below.";
+    if (!uploading && processing > 1) description = "We're compressing your files. Your downloads will appear below.";
+    if (done) description = `${done === 1 ? 'One file is' : `${done} files are`} ready to download below. We're working on the rest.`;
+    label = 'Upload another file';
+  } else if (done) {
+    state = 'success';
+    heading = done === 1 ? 'Your file is ready!' : 'Your files are ready!';
+    description = done === 1 ? 'Upload successful. Download your file below.' : 'Upload successful. Download your files below.';
+    if (errors) {
+      heading = `${done === 1 ? 'One file is' : `${done} files are`} ready to download.`;
+      description = 'Download the completed files below. Some files need your attention.';
+    }
+    label = 'Upload another file';
+  } else if (errors) {
+    state = 'error';
+    heading = 'Your file needs attention.';
+    description = 'Check the message below, then try again or choose another file.';
+    label = 'Upload another file';
+  }
+  dropzone.dataset.state = state;
+  $('.file-illustration').hidden = state !== 'idle';
+  $('.upload-status-icon').hidden = state === 'idle';
+  if (state === 'idle') $('#upload-heading').innerHTML = idleUploadHeading;
+  else $('#upload-heading').textContent = heading;
+  $('#upload-description').textContent = description;
+  $('#browse-label').textContent = label;
+  input.setAttribute('aria-label', label);
+  $('#view-downloads').hidden = !done;
+  $('.upload-limit').hidden = state !== 'idle';
 }
 async function loadConfiguration() {
   try {
