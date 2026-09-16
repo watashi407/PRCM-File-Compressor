@@ -1,52 +1,52 @@
-# PRCM-File-Compressor
+# PRCM File Compressor
 
-PRCM File Compressor is a minimalist file compression app.
+A minimalist browser-based file compressor. Files stay on the user's device. No uploads, compression API, Render service, or account is needed.
 
-A local file compressor with automatic format detection, a 4.8 MB target, and a strict 4.9 MB download limit. Drop multiple files, then download completed results while the rest process.
+The app targets 4,800,000 bytes and only offers downloads of 4,900,000 bytes or less. Files already within the maximum are returned unchanged. Files that cannot reach the limit show an explanation, not an oversized download.
 
-The interface also supports phones with native file selection, larger touch controls, upload retries, and restored download links after refreshing the same tab. iPhone HEIC photos are supported. For public mobile access, connect a separate compression server using [the deployment guide](DEPLOYMENT.md).
+## Supported files
 
-## Run on Windows
+- **Pictures:** JPEG, PNG, WebP, and HEIC. Quality is reduced before further resizing. PNG/WebP transparency is retained when the browser can encode WebP, otherwise PNG. Conversion can remove metadata. Animated formats are ZIP-packed instead of losing their frames.
+- **PDF:** Object and stream packing, plus recompression of supported embedded RGB/grayscale JPEG and Flate images. Text, page structure, and links are retained. Images with masks or unsupported color spaces remain untouched. PDFs are never flattened into screenshots. Encrypted or signed PDFs that require changes are rejected.
+- **Word:** DOCX/DOCM archives are detected from their contents. Embedded JPEG/PNG pictures can be optimized without changing document XML or image relationships. Macro contents are retained. Signed documents requiring changes are rejected. Legacy DOC files use lossless ZIP packing.
+- **ZIP:** Recompresses entries and checks their CRCs without altering file contents. Already compressed archives may not shrink. Encrypted, split, ZIP64, duplicate-name, and unsupported filename-encoding archives cannot be recompressed.
+- **Other files:** Tries lossless ZIP packing. There is no video/audio transcoding.
 
-Double-click **Start Smallside.bat**. Python 3.10 or newer is required. On the first run, the launcher installs dependencies in `.venv`. Keep the launcher open while using the app. Close it to stop the app.
+No compression method can guarantee an arbitrary file will fit under 4.9 MB while preserving its contents. Large or complex PDFs, photo-heavy documents, and incompressible ZIPs may need manual changes.
 
-Alternatively, run:
+## Phone and desktop behavior
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m uvicorn app:app --host 127.0.0.1 --port 8000
+Native file selection, drag and drop, original/output MB indicators, cancellation, retry, and individual downloads. One file processes at a time in a worker, with image encoding through browser canvas. The app accepts up to 10 files, 100 MB per file, 200 MB selected in total, and 120 MB of expanded archive contents. JPEG/PNG/extended WebP headers are checked against a 40 megapixel input limit before decoding. Device memory can impose lower practical limits.
+
+Save downloads before closing or refreshing the tab. Files and output blobs live only in tab memory. No files or download links are saved to a server or browser storage. An internet connection is needed to load the site and its compression libraries; offline startup is not provided.
+
+## Run locally
+
+Node.js 20+ and Python 3.10+ are needed for the Windows launcher. Double-click **Start Smallside.bat**, or run:
+
+```sh
+npm ci --ignore-scripts
+npm run build
+python -m http.server 8000 --bind 127.0.0.1 --directory dist
 ```
 
-Open http://127.0.0.1:8000. Files are processed locally. No cloud account or API key is needed. The app binds to localhost and is intended for personal desktop use.
-
-## Compression behavior
-
-- Format is detected from the uploaded contents, rather than trusting the filename.
-- Files at or below 4,800,000 bytes are returned unchanged.
-- Still images become JPEG or WebP. Compression searches image quality before reducing dimensions. Transparency is retained in WebP.
-- PDFs first receive lossless optimization, then embedded image compression. Text, page structure, and links are retained. Signed PDFs requiring compression are rejected to avoid invalidating their signatures.
-- Video becomes H.264 MP4 using two-pass encoding and a duration-based bitrate budget. The first video and audio tracks are kept. Audio becomes MP3.
-- Other formats and animated or multi-page images are ZIP-compressed without changing the original contents.
-- Some files cannot shrink to 4.9 MB. Those produce an explanation instead of an oversized download. Outputs are never padded to reach 4.8 MB.
-- Each upload can be up to 250 MB. Two files process at once, with up to eight active or queued uploads. Results expire after one hour and can be removed immediately using Clear finished.
-- Image/media conversion may remove metadata and reduce quality. PDF compression does not flatten pages into pictures. This app does not promise identical appearance after lossy compression.
-
-The backend uses FastAPI, Pillow, PyMuPDF, and the FFmpeg binary provided by imageio-ffmpeg. Review their licenses before distributing the app, especially PyMuPDF's AGPL/commercial license and the bundled FFmpeg build.
+Open http://127.0.0.1:8000. Python only serves static assets. All compression runs in the browser.
 
 ## Hosting
 
-The app accepts `prcm-file-compressor.vercel.app`, local addresses, and the exact hosts from Vercel's `VERCEL_URL`, `VERCEL_BRANCH_URL`, and `VERCEL_PROJECT_PRODUCTION_URL` environment variables. Add custom domains with a comma-separated `ALLOWED_HOSTS` environment variable, using hostnames without paths.
+Connect the repository to Vercel. `vercel.json` selects the Other framework preset, runs `npm ci --ignore-scripts` and `npm run build`, and publishes only `dist/`. No Python functions or compression backend are deployed. See [DEPLOYMENT.md](DEPLOYMENT.md).
 
-Fixing the allowed hosts lets the interface load on Vercel. The current compression backend still requires a persistent server. Its job queue and temporary files are local to one running process. Vercel Functions can route later requests to other instances, and their [4.5 MB request/response limit](https://vercel.com/docs/functions/limitations) is smaller than the app's upload allowance and maximum output size.
-
-For public uploads, deploy the included Docker backend on a persistent server and set `COMPRESSION_API_URL` in Vercel to its HTTPS origin. The browser sends uploads and downloads directly to that server. See [DEPLOYMENT.md](DEPLOYMENT.md) for Render and Docker instructions. On a public server, files are processed on that server rather than the visitor's computer. A Vercel deployment without a configured backend displays a service notice instead of starting uploads that cannot complete.
+The earlier Python compression implementation remains in the repository for reference and its existing tests, but the browser app does not call it. Existing Render resources are not automatically stopped by this update.
 
 ## Verify
 
-```powershell
-.\.venv\Scripts\python.exe -m pip install pytest httpx
-.\.venv\Scripts\python.exe -m pytest -q
+```sh
+npm test
+npm run build
 ```
 
-Compression details are implemented using the [PyMuPDF document API](https://pymupdf.readthedocs.io/en/latest/document.html) and [imageio-ffmpeg](https://github.com/imageio/imageio-ffmpeg).
+The browser engine tests cover byte limits, format detection, archive integrity, Word contents, PDF preservation, and signed-document handling. Test real image conversion and downloads in a browser too.
+
+## Libraries
+
+Pinned dependencies are installed from npm and served from the same website. There are no third-party CDN requests. See [the library notices](static/licenses.html) for licenses and source links. `fflate` and `pdf-lib` use the MIT license; `heic-to` and its libheif components have LGPL and included third-party terms. Their license notices ship with the app. The old Python backend has separate dependencies described in `requirements.txt`.

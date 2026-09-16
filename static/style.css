@@ -72,4 +72,3 @@ body{padding-bottom:env(safe-area-inset-bottom)}
 @media(max-width:700px){.upload-status-icon{width:66px;height:66px;margin-bottom:20px}.upload-copy p{font-size:13px}.view-downloads{font-size:14px;min-height:48px}}
 @media(prefers-reduced-motion:reduce){.upload-spinner{animation:none!important}}
 .size-indicator{display:inline-block;padding:5px 8px;border-radius:5px;background:#edf5ef;white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:550}.original-size{background:#f0f2f4;color:#56616b}
-.service-notice{display:flex;align-items:center;justify-content:space-between;gap:12px}.service-notice p{margin:0;flex:1}.service-notice .retry{flex-shrink:0;min-height:44px;white-space:nowrap}@media(max-width:700px){.service-notice{align-items:stretch;flex-direction:column}.service-notice .retry{width:100%;flex:none}}

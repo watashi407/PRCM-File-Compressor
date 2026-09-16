@@ -7,6 +7,7 @@
   <title>PRCM File Compressor · A little less file.</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/style.css">
+  <script src="/raster.js" defer></script>
   <script src="/app.js" defer></script>
 </head>
 <body>
@@ -23,35 +24,35 @@
 
     <section class="compressor" aria-label="File compressor">
       <div class="panel-header"><span class="panel-label"><span class="green-dot"></span> Auto compress</span><span class="target-pill">TARGET <strong>4.8 MB</strong></span></div>
-      <div class="service-notice" id="service-notice" hidden><p id="service-message" role="status" aria-live="polite"></p><button class="button retry" id="retry-connection" type="button">Retry connection</button></div>
+      <p class="service-notice" id="selection-notice" role="status" aria-live="polite" hidden></p>
       <div class="dropzone" id="dropzone">
         <div class="file-illustration" aria-hidden="true"><div class="back-file"></div><div class="front-file"><svg viewBox="0 0 32 32"><path d="M16 7v18M7 16h18"/></svg></div><div class="mini-arrow"><svg viewBox="0 0 24 24"><path d="M7 7h4v4m6 6h-4v-4M11 11 6 6m7 7 5 5"/></svg></div></div>
         <div class="upload-status-icon" aria-hidden="true" hidden><svg class="success-check" viewBox="0 0 32 32"><path d="m8 16 5 5 11-12"/></svg><svg class="error-mark" viewBox="0 0 32 32"><path d="M16 8v10m0 6h.01"/></svg><span class="upload-spinner"></span></div>
         <div class="upload-copy" role="status" aria-live="polite" aria-atomic="true">
           <h2 id="upload-heading"><span class="desktop-copy">Drop it here. We'll take it from there.</span><span class="mobile-copy">Choose a file. We'll make it smaller.</span></h2>
-          <p id="upload-description">Any file format. Automatically detected.</p>
+          <p id="upload-description">Images, PDFs, Word, and ZIP. Automatically detected.</p>
         </div>
         <label class="button primary" id="browse" for="file-input"><svg viewBox="0 0 24 24"><path d="M12 16V4m-4 4 4-4 4 4M5 15v5h14v-5"/></svg><span id="browse-label">Choose files</span><input type="file" id="file-input" aria-label="Choose files" multiple></label>
         <a class="view-downloads" id="view-downloads" href="#queue-section" hidden>View downloads below <span aria-hidden="true">↓</span></a>
-        <span class="upload-limit"><span class="desktop-copy">or drag and drop · </span>Up to 250 MB per file</span>
+        <span class="upload-limit"><span class="desktop-copy">or drag and drop · </span>Up to 100 MB per file</span>
       </div>
-      <div class="panel-footer"><span><svg viewBox="0 0 24 24"><path d="m12 3 8 4v5c0 5-8 9-8 9s-8-4-8-9V7l8-4Z"/><path d="m8 12 3 3 5-6"/></svg>Files stay on this computer</span><span><svg viewBox="0 0 24 24"><path d="m13 2-9 12h7l-1 8 10-13h-7l1-7Z"/></svg>No settings needed</span></div>
+      <div class="panel-footer"><span><svg viewBox="0 0 24 24"><path d="m12 3 8 4v5c0 5-8 9-8 9s-8-4-8-9V7l8-4Z"/><path d="m8 12 3 3 5-6"/></svg>Files stay on your device</span><span><svg viewBox="0 0 24 24"><path d="m13 2-9 12h7l-1 8 10-13h-7l1-7Z"/></svg>No uploads needed</span></div>
     </section>
 
     <section class="queue-section" id="queue-section" hidden aria-labelledby="queue-heading">
       <div class="queue-heading"><h2 id="queue-heading">Your files <span id="file-count">0</span></h2><button id="clear" class="text-button">Clear finished</button></div>
       <div id="queue" class="queue"></div>
-      <p class="session-note">Downloads stay available for one hour. <span class="desktop-copy">Download each file when it's ready.</span><span class="mobile-copy">Tap Download to save to your device.</span></p>
+      <p class="session-note">Download before closing or refreshing this page. Files are kept only in this tab.</p>
     </section>
 
     <section class="how" aria-label="How it works">
-      <div><span class="step-number">01</span><h3>Drop any file</h3><p>Images, PDFs, videos, audio,<br>and everything in between.</p></div>
-      <div><span class="step-number">02</span><h3>We do the sizing</h3><p>The right method for your file,<br>aiming for 4.8 MB or less.</p></div>
+      <div><span class="step-number">01</span><h3>Choose your file</h3><p>Images, PDFs, Word documents,<br>and ZIP archives.</p></div>
+      <div><span class="step-number">02</span><h3>Compress on your device</h3><p>Aiming for 4.8 MB or less.<br>Some files cannot shrink enough.</p></div>
       <div><span class="step-number">03</span><h3>Download. Done.</h3><p>A smaller file, ready to go.<br>Every download 4.9 MB or less.</p></div>
     </section>
 
   </main>
-  <footer class="site-footer"><span>Small files. Less friction.</span><span>Made for the 4.9 MB limit <span class="footer-star">✳</span></span></footer>
+  <footer class="site-footer"><span>Small files. Less friction.</span><a href="/licenses.html">Library notices</a><span>Made for the 4.9 MB limit <span class="footer-star">✳</span></span></footer>
   <div id="announcer" class="sr-only" role="status" aria-live="polite"></div>
 </body>
 </html>
