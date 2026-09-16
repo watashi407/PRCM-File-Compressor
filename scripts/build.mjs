@@ -1,4 +1,5 @@
-import { cp, mkdir, copyFile } from 'node:fs/promises';
+import { cp, mkdir, copyFile, readFile, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 
 await mkdir('static/vendor', { recursive: true });
 for (const [source, destination] of [
@@ -11,4 +12,11 @@ for (const [source, destination] of [
 ]) await copyFile(`node_modules/${source}`, `static/vendor/${destination}`);
 await mkdir('dist', { recursive: true });
 await cp('static', 'dist', { recursive: true });
+// A header-only deployment can keep the HTML ETag unchanged. A subsequent 304
+// may retain the browser's old CSP. Change HTML bytes when the policy changes.
+const policyVersion = createHash('sha256').update(await readFile('vercel.json')).digest('hex').slice(0, 16);
+for (const page of ['index.html', 'licenses.html']) {
+  const html = await readFile(`dist/${page}`, 'utf8');
+  await writeFile(`dist/${page}`, html.replace('</head>', `<meta name="prcm-policy-version" content="${policyVersion}">\n</head>`));
+}
 console.log('Built static site in dist/ and prepared local browser libraries.');
