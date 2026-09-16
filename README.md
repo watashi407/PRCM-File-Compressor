@@ -2,7 +2,7 @@
 
 PRCM File Compressor is a minimalist file compression app.
 
-A local file compressor with automatic format detection, a 4.8 MB target, and a strict 5 MB download limit. Drop multiple files, then download completed results while the rest process.
+A local file compressor with automatic format detection, a 4.8 MB target, and a strict 4.9 MB download limit. Drop multiple files, then download completed results while the rest process.
 
 The interface also supports phones with native file selection, larger touch controls, upload retries, and restored download links after refreshing the same tab. iPhone HEIC photos are supported. For public mobile access, connect a separate compression server using [the deployment guide](DEPLOYMENT.md).
 
@@ -28,7 +28,7 @@ Open http://127.0.0.1:8000. Files are processed locally. No cloud account or API
 - PDFs first receive lossless optimization, then embedded image compression. Text, page structure, and links are retained. Signed PDFs requiring compression are rejected to avoid invalidating their signatures.
 - Video becomes H.264 MP4 using two-pass encoding and a duration-based bitrate budget. The first video and audio tracks are kept. Audio becomes MP3.
 - Other formats and animated or multi-page images are ZIP-compressed without changing the original contents.
-- Some files cannot shrink to 5 MB. Those produce an explanation instead of an oversized download. Outputs are never padded to reach 4.8 MB.
+- Some files cannot shrink to 4.9 MB. Those produce an explanation instead of an oversized download. Outputs are never padded to reach 4.8 MB.
 - Each upload can be up to 250 MB. Two files process at once, with up to eight active or queued uploads. Results expire after one hour and can be removed immediately using Clear finished.
 - Image/media conversion may remove metadata and reduce quality. PDF compression does not flatten pages into pictures. This app does not promise identical appearance after lossy compression.
 

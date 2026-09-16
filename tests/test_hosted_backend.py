@@ -64,7 +64,7 @@ def test_large_upload_and_download_from_public_frontend(api_client):
     assert state['status'] == 'done', state
     download = api_client.get(f'/api/jobs/{key}/download', headers={'origin': origin})
     assert download.status_code == 200
-    assert len(download.content) <= 5_000_000
+    assert len(download.content) <= 4_900_000
     assert 'attachment;' in download.headers['content-disposition']
     assert download.headers['access-control-allow-origin'] == origin
     with zipfile.ZipFile(io.BytesIO(download.content)) as archive:

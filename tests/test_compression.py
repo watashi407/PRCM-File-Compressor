@@ -87,8 +87,8 @@ def test_iphone_heic_content_detection_and_compression(tmp_path):
 
 def test_incompressible_file_never_returns_oversized_result(tmp_path):
     source = tmp_path / 'source.input'
-    source.write_bytes(os.urandom(MAXIMUM + 100_000))
-    with pytest.raises(CompressionError, match='cannot be compressed below 5 MB'):
+    source.write_bytes(os.urandom(4_950_000))
+    with pytest.raises(CompressionError, match='cannot be compressed below 4.9 MB'):
         compress(source, 'random.bin')
 
 
@@ -114,7 +114,7 @@ def test_media_detection_and_decodable_output(tmp_path, video):
 def test_api_upload_download_errors_and_limits(monkeypatch, api_client):
     client = api_client
     assert client.get('/').status_code == 200
-    assert client.get('/api/health').json()['maximum'] == MAXIMUM
+    assert client.get('/api/health').json()['maximum'] == 4_900_000
     assert client.post('/api/compress', content=b'').status_code == 400
     assert client.post('/api/compress', content=b'hello', headers={'origin': 'https://example.com'}).status_code == 403
     monkeypatch.setattr(app, 'UPLOAD_LIMIT', 20)

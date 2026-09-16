@@ -187,7 +187,7 @@ def download(key: str):
         result = job['result']
         path = Path(result['path'])
         if not path.exists() or path.stat().st_size > MAXIMUM:
-            raise HTTPException(409, 'This file did not pass the 5 MB size check.')
+            raise HTTPException(409, 'This file did not pass the 4.9 MB size check.')
         job['updated'] = time.time()
     return FileResponse(path, filename=result['name'], media_type='application/octet-stream')
 

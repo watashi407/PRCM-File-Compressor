@@ -18,7 +18,7 @@ from pillow_heif import register_heif_opener
 register_heif_opener()
 
 TARGET = 4_800_000
-MAXIMUM = 5_000_000
+MAXIMUM = 4_900_000
 PDF_LOCK = threading.Lock()  # MuPDF does not support concurrent use in threads.
 Image.MAX_IMAGE_PIXELS = 60_000_000
 
@@ -105,7 +105,7 @@ def compress_image(source: Path, output: Path, update) -> tuple[Path, str]:
                 return result, f'Converted to {fmt}. Image quality and dimensions adjusted only as needed.'
             update(30 + resize_attempt * 4, 'Adjusting image dimensions')
             img = img.resize((max(1, int(img.width * .8)), max(1, int(img.height * .8))), Image.Resampling.LANCZOS)
-    raise CompressionError('This image could not be reduced below 5 MB.')
+    raise CompressionError('This image could not be reduced below 4.9 MB.')
 
 
 def compress_pdf(source: Path, output: Path, update) -> tuple[Path, str]:
@@ -130,7 +130,7 @@ def compress_pdf(source: Path, output: Path, update) -> tuple[Path, str]:
                 return result, 'PDF images compressed. Text stays selectable; pages and links are preserved.'
         if result.stat().st_size <= MAXIMUM:
             return result, 'PDF images compressed. Text stays selectable; pages and links are preserved.'
-    raise CompressionError('This PDF cannot fit under 5 MB while preserving its pages and text. Split it into smaller documents.')
+    raise CompressionError('This PDF cannot fit under 4.9 MB while preserving its pages and text. Split it into smaller documents.')
 
 
 def compress_media(source: Path, output: Path, info: dict, update) -> tuple[Path, str]:
@@ -147,7 +147,7 @@ def compress_media(source: Path, output: Path, info: dict, update) -> tuple[Path
             audio_rate = min(96_000, max(24_000, int(budget * .15))) if info['has_audio'] else 0
             rate = budget - audio_rate
             if rate < 45_000:
-                raise CompressionError('This video is too long to fit under 5 MB at usable quality. Trim it and try again.')
+                raise CompressionError('This video is too long to fit under 4.9 MB at usable quality. Trim it and try again.')
             width = 1280 if rate >= 1_000_000 else 854 if rate >= 400_000 else 640 if rate >= 150_000 else 426
             encoding = ['-map', '0:v:0', '-vf', f'scale=w=min({width}\\,iw):h=-2:force_divisible_by=2',
                         '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-preset', 'fast', '-b:v', str(rate),
@@ -162,7 +162,7 @@ def compress_media(source: Path, output: Path, info: dict, update) -> tuple[Path
             rates = [16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320]
             possible = [rate for rate in rates if rate * 1000 <= budget]
             if not possible:
-                raise CompressionError('This audio is too long to fit under 5 MB. Trim it and try again.')
+                raise CompressionError('This audio is too long to fit under 4.9 MB. Trim it and try again.')
             args += ['-map', '0:a:0', '-vn', '-c:a', 'libmp3lame', '-b:a', f'{max(possible)}k', '-ac', '2']
         encoded = ffmpeg([*args, str(result)])
         if encoded.returncode != 0:
@@ -171,8 +171,8 @@ def compress_media(source: Path, output: Path, info: dict, update) -> tuple[Path
             return result, 'Converted to MP4 with the first video and audio tracks.' if video else 'Converted to MP3 with the first audio track.'
         budget = int(budget * .88)
     if result.exists() and result.stat().st_size <= MAXIMUM:
-        return result, 'Media compressed and verified below 5 MB.'
-    raise CompressionError('This media file could not be reduced below 5 MB.')
+        return result, 'Media compressed and verified at 4.9 MB or less.'
+    raise CompressionError('This media file could not be reduced below 4.9 MB.')
 
 
 def compress(source: Path, name: str, update=lambda *_: None) -> dict:
@@ -205,7 +205,7 @@ def compress(source: Path, name: str, update=lambda *_: None) -> dict:
         download_name = stem + '-compressed' + result.suffix
     final_size = result.stat().st_size
     if final_size > MAXIMUM or final_size >= size > MAXIMUM:
-        raise CompressionError('This file cannot be compressed below 5 MB without changing its contents. Try splitting it into smaller files.')
+        raise CompressionError('This file cannot be compressed below 4.9 MB without changing its contents. Try splitting it into smaller files.')
     if not final_size:
         raise CompressionError('The compressor produced an empty file. Try another file.')
     update(100, 'Ready to download')

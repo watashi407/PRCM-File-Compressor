@@ -11,7 +11,7 @@ Uploads, job status, and downloads go directly from the browser to the compressi
 5. Deploy. Render supplies the service hostname through `RENDER_EXTERNAL_HOSTNAME`, which the app accepts automatically.
 6. Copy the service's HTTPS URL. Open `<service URL>/api/health` and confirm that it returns `status: ok`.
 7. In the Vercel project's environment variables, set `COMPRESSION_API_URL` to that HTTPS URL, without a path. Apply it to Production and redeploy.
-8. Open the Vercel site on your phone, select a file larger than 5 MB, wait for compression, and tap Download. The browser's download manager or Files app saves it.
+8. Open the Vercel site on your phone, select a file larger than 4.9 MB, wait for compression, and tap Download. The browser's download manager or Files app saves it.
 
 The backend permits the production origin `https://prcm-file-compressor.vercel.app`. For additional frontend domains, set `FRONTEND_ORIGINS` on the backend to a comma-separated list of full HTTPS origins. Preview domains must be added explicitly if you want them to upload files.
 
