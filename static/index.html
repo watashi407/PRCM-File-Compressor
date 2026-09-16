@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#f7f8fa">
   <title>PRCM Compressor · A little less file.</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -23,13 +23,13 @@
 
     <section class="compressor" aria-label="File compressor">
       <div class="panel-header"><span class="panel-label"><span class="green-dot"></span> Auto compress</span><span class="target-pill">TARGET <strong>4.8 MB</strong></span></div>
+      <p class="service-notice" id="service-notice" role="status" hidden></p>
       <div class="dropzone" id="dropzone">
         <div class="file-illustration" aria-hidden="true"><div class="back-file"></div><div class="front-file"><svg viewBox="0 0 32 32"><path d="M16 7v18M7 16h18"/></svg></div><div class="mini-arrow"><svg viewBox="0 0 24 24"><path d="M7 7h4v4m6 6h-4v-4M11 11 6 6m7 7 5 5"/></svg></div></div>
-        <h2>Drop it here. We'll take it from there.</h2>
+        <h2><span class="desktop-copy">Drop it here. We'll take it from there.</span><span class="mobile-copy">Choose a file. We'll make it smaller.</span></h2>
         <p>Any file format. Automatically detected.</p>
-        <button class="button primary" id="browse"><svg viewBox="0 0 24 24"><path d="M12 16V4m-4 4 4-4 4 4M5 15v5h14v-5"/></svg>Choose files</button>
-        <input type="file" id="file-input" multiple hidden>
-        <span class="upload-limit">or drag and drop · up to 250 MB per file</span>
+        <label class="button primary" id="browse" for="file-input"><svg viewBox="0 0 24 24"><path d="M12 16V4m-4 4 4-4 4 4M5 15v5h14v-5"/></svg>Choose files<input type="file" id="file-input" aria-label="Choose files" multiple></label>
+        <span class="upload-limit"><span class="desktop-copy">or drag and drop · </span>Up to 250 MB per file</span>
       </div>
       <div class="panel-footer"><span><svg viewBox="0 0 24 24"><path d="m12 3 8 4v5c0 5-8 9-8 9s-8-4-8-9V7l8-4Z"/><path d="m8 12 3 3 5-6"/></svg>Files stay on this computer</span><span><svg viewBox="0 0 24 24"><path d="m13 2-9 12h7l-1 8 10-13h-7l1-7Z"/></svg>No settings needed</span></div>
     </section>
@@ -37,7 +37,7 @@
     <section class="queue-section" id="queue-section" hidden aria-labelledby="queue-heading">
       <div class="queue-heading"><h2 id="queue-heading">Your files <span id="file-count">0</span></h2><button id="clear" class="text-button">Clear finished</button></div>
       <div id="queue" class="queue"></div>
-      <p class="session-note">Downloads stay available for one hour. Download each file when it's ready.</p>
+      <p class="session-note">Downloads stay available for one hour. <span class="desktop-copy">Download each file when it's ready.</span><span class="mobile-copy">Tap Download to save to your device.</span></p>
     </section>
 
     <section class="how" aria-label="How it works">

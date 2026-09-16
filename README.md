@@ -4,6 +4,8 @@ PRCM Compressor is a minimalist file compression app.
 
 A local file compressor with automatic format detection, a 4.8 MB target, and a strict 5 MB download limit. Drop multiple files, then download completed results while the rest process.
 
+The interface also supports phones with native file selection, larger touch controls, upload retries, and restored download links after refreshing the same tab. iPhone HEIC photos are supported. For public mobile access, connect a separate compression server using [the deployment guide](DEPLOYMENT.md).
+
 ## Run on Windows
 
 Double-click **Start Smallside.bat**. Python 3.10 or newer is required. On the first run, the launcher installs dependencies in `.venv`. Keep the launcher open while using the app. Close it to stop the app.
@@ -38,7 +40,7 @@ The app accepts `prcm-file-compressor.vercel.app`, local addresses, and the exac
 
 Fixing the allowed hosts lets the interface load on Vercel. The current compression backend still requires a persistent server. Its job queue and temporary files are local to one running process. Vercel Functions can route later requests to other instances, and their [4.5 MB request/response limit](https://vercel.com/docs/functions/limitations) is smaller than the app's upload allowance and maximum output size.
 
-For public uploads, deploy the backend on a persistent server or redesign it around direct object-storage uploads, durable job storage, and a worker. The current 250 MB upload flow is not supported by a standalone Vercel Function. On a public server, files are processed on that server rather than the visitor's computer.
+For public uploads, deploy the included Docker backend on a persistent server and set `COMPRESSION_API_URL` in Vercel to its HTTPS origin. The browser sends uploads and downloads directly to that server. See [DEPLOYMENT.md](DEPLOYMENT.md) for Render and Docker instructions. On a public server, files are processed on that server rather than the visitor's computer. A Vercel deployment without a configured backend displays a service notice instead of starting uploads that cannot complete.
 
 ## Verify
 

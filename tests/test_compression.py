@@ -71,6 +71,20 @@ def test_generic_zip_roundtrip(tmp_path):
         assert archive.read('export.csv') == contents
 
 
+def test_iphone_heic_content_detection_and_compression(tmp_path):
+    source = tmp_path / 'iphone-photo.input'
+    img = Image.frombytes('RGB', (2000, 2000), os.urandom(2000 * 2000 * 3))
+    img.save(source, format='HEIF', quality=-1)
+    assert source.stat().st_size > MAXIMUM
+    assert detect(source)['format'] == 'HEIF'
+    result = compress(source, 'iphone-photo.heic')
+    assert result['name'].endswith('.jpg')
+    assert result['size'] <= TARGET
+    with Image.open(result['path']) as output:
+        output.load()
+        assert output.size == (2000, 2000)
+
+
 def test_incompressible_file_never_returns_oversized_result(tmp_path):
     source = tmp_path / 'source.input'
     source.write_bytes(os.urandom(MAXIMUM + 100_000))
@@ -97,29 +111,28 @@ def test_media_detection_and_decodable_output(tmp_path, video):
     assert abs(detect(Path(result['path']))['duration'] - (4 if video else 32)) < .2
 
 
-def test_api_upload_download_errors_and_limits(monkeypatch):
-    # A single lifespan owns the executor. Exercise the whole HTTP lifecycle here.
-    with TestClient(app.app) as client:
-        assert client.get('/').status_code == 200
-        assert client.get('/api/health').json()['maximum'] == MAXIMUM
-        assert client.post('/api/compress', content=b'').status_code == 400
-        assert client.post('/api/compress', content=b'hello', headers={'origin': 'https://example.com'}).status_code == 403
-        monkeypatch.setattr(app, 'UPLOAD_LIMIT', 20)
-        assert client.post('/api/compress', content=b'x' * 21).status_code == 413
-        monkeypatch.setattr(app, 'UPLOAD_LIMIT', 250_000_000)
-        contents = b'hello from the upload test'
-        response = client.post('/api/compress', content=contents, headers={'x-file-name': '..%2Fnotes.txt'})
-        assert response.status_code == 202
-        key = response.json()['id']
-        for _ in range(200):
-            status = client.get(f'/api/jobs/{key}').json()
-            if status['status'] in ('done', 'error'):
-                break
-            time.sleep(.05)
-        assert status['status'] == 'done', status
-        assert 'path' not in status['result']
-        response = client.get(f'/api/jobs/{key}/download')
-        assert response.content == contents
-        assert 'notes.txt' in response.headers['content-disposition']
-        assert client.delete(f'/api/jobs/{key}').status_code == 200
-        assert client.get(f'/api/jobs/{key}/download').status_code == 404
+def test_api_upload_download_errors_and_limits(monkeypatch, api_client):
+    client = api_client
+    assert client.get('/').status_code == 200
+    assert client.get('/api/health').json()['maximum'] == MAXIMUM
+    assert client.post('/api/compress', content=b'').status_code == 400
+    assert client.post('/api/compress', content=b'hello', headers={'origin': 'https://example.com'}).status_code == 403
+    monkeypatch.setattr(app, 'UPLOAD_LIMIT', 20)
+    assert client.post('/api/compress', content=b'x' * 21).status_code == 413
+    monkeypatch.setattr(app, 'UPLOAD_LIMIT', 250_000_000)
+    contents = b'hello from the upload test'
+    response = client.post('/api/compress', content=contents, headers={'x-file-name': '..%2Fnotes.txt'})
+    assert response.status_code == 202
+    key = response.json()['id']
+    for _ in range(200):
+        status = client.get(f'/api/jobs/{key}').json()
+        if status['status'] in ('done', 'error'):
+            break
+        time.sleep(.05)
+    assert status['status'] == 'done', status
+    assert 'path' not in status['result']
+    response = client.get(f'/api/jobs/{key}/download')
+    assert response.content == contents
+    assert 'notes.txt' in response.headers['content-disposition']
+    assert client.delete(f'/api/jobs/{key}').status_code == 200
+    assert client.get(f'/api/jobs/{key}/download').status_code == 404

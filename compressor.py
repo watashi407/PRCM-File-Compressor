@@ -13,6 +13,9 @@ from pathlib import Path
 import imageio_ffmpeg
 import pymupdf
 from PIL import Image, ImageOps, UnidentifiedImageError
+from pillow_heif import register_heif_opener
+
+register_heif_opener()
 
 TARGET = 4_800_000
 MAXIMUM = 5_000_000

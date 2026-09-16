@@ -3,6 +3,11 @@ const input = $('#file-input');
 const dropzone = $('#dropzone');
 const queue = $('#queue');
 const entries = new Map();
+let apiBase = '';
+let uploadLimit = 250_000_000;
+let configError = '';
+const storageKey = 'prcm-compressor-jobs-v1';
+const configuration = loadConfiguration();
 if (!['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)) {
   const privacyLabel = document.querySelector('.panel-footer > span:first-child');
   privacyLabel.lastChild.textContent = 'Files processed on this server';
@@ -23,6 +28,59 @@ function refreshCount() {
   $('#queue-section').hidden = !entries.size;
   $('#file-count').textContent = entries.size;
   $('#clear').disabled = ![...entries.values()].some(entry => ['done', 'error'].includes(entry.state));
+  saveSession();
+}
+async function loadConfiguration() {
+  try {
+    const response = await fetch('/api/config');
+    const config = await response.json();
+    if (!response.ok) throw new Error(config.detail || 'Could not connect to the compression service. Refresh to try again.');
+    if (!config.available) throw new Error('The compression server is not connected yet. Please try again later.');
+    apiBase = config.api_url || '';
+    uploadLimit = config.upload_limit || uploadLimit;
+  } catch (error) {
+    configError = error.message || 'Could not connect to the compression service. Refresh to try again.';
+    $('#service-notice').textContent = configError;
+    $('#service-notice').hidden = false;
+  }
+}
+function api(path) { return apiBase + path; }
+function saveSession() {
+  try {
+    const jobs = [...entries.values()].filter(entry => entry.jobId && entry.state !== 'error').map(entry => ({
+      id: entry.id, jobId: entry.jobId, name: entry.file.name, size: entry.file.size,
+      apiBase, savedAt: Date.now()
+    }));
+    sessionStorage.setItem(storageKey, JSON.stringify(jobs));
+  } catch { /* File processing does not depend on browser storage. */ }
+}
+async function restoreSession() {
+  await configuration;
+  if (configError) return;
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(storageKey) || '[]');
+    for (const item of saved) {
+      if (!/^[a-f0-9]{32}$/.test(item.jobId) || item.apiBase !== apiBase || Date.now() - item.savedAt > 3_600_000) continue;
+      const entry = {id: item.id, jobId: item.jobId, file: {name: item.name, size: item.size},
+        state: 'processing', progress: 0, message: 'Checking your file', row: element('article', 'file-row')};
+      entries.set(entry.id, entry);
+      queue.prepend(entry.row);
+      paint(entry);
+      poll(entry);
+    }
+  } catch { /* Invalid or disabled storage starts a fresh session. */ }
+}
+function pumpQueue() {
+  let active = [...entries.values()].filter(entry => ['uploading', 'queued', 'processing'].includes(entry.state)).length;
+  for (const entry of entries.values()) {
+    if (active >= 2) break;
+    if (entry.state !== 'waiting') continue;
+    entry.state = 'uploading';
+    entry.message = 'Preparing upload';
+    paint(entry);
+    active++;
+    upload(entry);
+  }
 }
 function paint(entry) {
   const {row, file, state, progress, message, detected, result} = entry;
@@ -42,7 +100,7 @@ function paint(entry) {
     if (saved) meta.append(element('span', 'saving', `${saved}% smaller`));
   }
   main.append(name, meta);
-  if (['uploading', 'queued', 'processing'].includes(state)) {
+  if (['waiting', 'uploading', 'queued', 'processing'].includes(state)) {
     const track = element('div', 'progress-track');
     track.setAttribute('role', 'progressbar');
     track.setAttribute('aria-label', `${file.name}: ${message}`);
@@ -58,13 +116,26 @@ function paint(entry) {
   const actions = element('div', 'file-actions');
   if (state === 'done') {
     const link = element('a', 'button download');
-    link.href = `/api/jobs/${entry.jobId}/download`;
+    link.href = api(`/api/jobs/${entry.jobId}/download`);
     link.download = result.name;
     link.innerHTML = `${icons.download}<span>Download</span>`;
     link.setAttribute('aria-label', `Download ${result.name}`);
     actions.append(link);
   } else if (state !== 'error') {
-    actions.append(element('span', 'status-label', state === 'uploading' ? 'Uploading' : state === 'queued' ? 'In queue' : `${Math.round(progress || 0)}%`));
+    actions.append(element('span', 'status-label', state === 'uploading' ? 'Uploading' : ['waiting', 'queued'].includes(state) ? 'In queue' : `${Math.round(progress || 0)}%`));
+  }
+  if (state === 'error' && entry.file instanceof File) {
+    const retry = element('button', 'button retry', 'Try again');
+    retry.addEventListener('click', () => {
+      clearTimeout(entry.timer);
+      entry.state = 'waiting';
+      entry.message = 'Waiting to upload';
+      entry.jobId = undefined;
+      entry.progress = 0;
+      paint(entry);
+      pumpQueue();
+    });
+    actions.append(retry);
   }
   if (['done', 'error'].includes(state)) {
     const remove = element('button', 'remove');
@@ -79,7 +150,7 @@ function paint(entry) {
 async function removeEntry(entry) {
   if (entry.jobId) {
     try {
-      const response = await fetch(`/api/jobs/${entry.jobId}`, {method: 'DELETE'});
+      const response = await fetch(api(`/api/jobs/${entry.jobId}`), {method: 'DELETE'});
       if (!response.ok) throw new Error();
     } catch {
       $('#announcer').textContent = 'Could not remove the file. Try again.';
@@ -93,13 +164,18 @@ async function removeEntry(entry) {
 }
 function fail(entry, message) {
   entry.state = 'error';
+  entry.result = undefined;
   entry.message = message;
   paint(entry);
   $('#announcer').textContent = `${entry.file.name}: ${message}`;
+  pumpQueue();
 }
 async function poll(entry) {
+  if (!entries.has(entry.id) || entry.polling) return;
+  clearTimeout(entry.timer);
+  entry.polling = true;
   try {
-    const response = await fetch(`/api/jobs/${entry.jobId}`);
+    const response = await fetch(api(`/api/jobs/${entry.jobId}`));
     if (!response.ok) {
       if (response.status === 404) return fail(entry, 'This file has expired. Choose it again.');
       throw new Error();
@@ -110,20 +186,26 @@ async function poll(entry) {
     if (data.status === 'done' || data.status === 'error') {
       $('#announcer').textContent = data.status === 'done' ? `${entry.file.name} is ready to download.` : `${entry.file.name}: ${data.message}`;
       if (data.status === 'done') entry.timer = setTimeout(() => poll(entry), 60_000);
+      pumpQueue();
       return;
     }
   } catch {
     entry.failures = (entry.failures || 0) + 1;
     entry.message = 'Connection interrupted. Reconnecting…';
     paint(entry);
+  } finally {
+    entry.polling = false;
   }
   entry.timer = setTimeout(() => poll(entry), entry.failures ? 4000 : 800);
 }
-function upload(entry) {
+async function upload(entry) {
+  await configuration;
+  if (configError) return fail(entry, configError);
   if (entry.file.size === 0) return fail(entry, 'This file is empty. Choose a file with content.');
-  if (entry.file.size > 250_000_000) return fail(entry, 'Choose a file smaller than 250 MB.');
+  if (entry.file.size > uploadLimit) return fail(entry, `Choose a file smaller than ${size(uploadLimit)}.`);
   const xhr = new XMLHttpRequest();
-  xhr.open('POST', '/api/compress');
+  xhr.open('POST', api('/api/compress'));
+  xhr.timeout = 600_000;
   xhr.setRequestHeader('Content-Type', 'application/octet-stream');
   xhr.setRequestHeader('X-File-Name', encodeURIComponent(entry.file.name));
   xhr.upload.onprogress = event => {
@@ -134,6 +216,7 @@ function upload(entry) {
     }
   };
   xhr.onload = () => {
+    if (xhr.status === 413) return fail(entry, 'This upload exceeds the server limit. Try a smaller file.');
     let data;
     try { data = JSON.parse(xhr.responseText); } catch { return fail(entry, 'The app could not read the response. Try again.'); }
     if (xhr.status !== 202) return fail(entry, data.detail || 'Upload failed. Try again.');
@@ -144,19 +227,19 @@ function upload(entry) {
     paint(entry);
     poll(entry);
   };
-  xhr.onerror = () => fail(entry, 'Could not reach the app. Make sure PRCM Compressor is running and try again.');
+  xhr.onerror = () => fail(entry, 'Could not upload. Check your connection and tap Try again.');
+  xhr.ontimeout = () => fail(entry, 'The upload timed out. Check your connection and tap Try again.');
   xhr.send(entry.file);
 }
 function addFiles(files) {
   for (const file of files) {
-    const entry = {id: crypto.randomUUID(), file, state: 'uploading', progress: 0, message: 'Preparing upload', row: element('article', 'file-row')};
+    const entry = {id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, file, state: 'waiting', progress: 0, message: 'Waiting to upload', row: element('article', 'file-row')};
     entries.set(entry.id, entry);
     queue.prepend(entry.row);
     paint(entry);
-    upload(entry);
   }
+  pumpQueue();
 }
-$('#browse').addEventListener('click', () => input.click());
 input.addEventListener('change', () => { addFiles(input.files); input.value = ''; });
 let dragDepth = 0;
 document.addEventListener('dragover', event => event.preventDefault());
@@ -167,3 +250,17 @@ dropzone.addEventListener('drop', event => { event.preventDefault(); dragDepth =
 $('#clear').addEventListener('click', () => {
   for (const entry of entries.values()) if (['done', 'error'].includes(entry.state)) removeEntry(entry);
 });
+function resumeChecks() {
+  if (document.hidden) return;
+  for (const entry of entries.values()) if (entry.jobId && entry.state !== 'error') poll(entry);
+}
+document.addEventListener('visibilitychange', resumeChecks);
+window.addEventListener('online', resumeChecks);
+window.addEventListener('pageshow', resumeChecks);
+window.addEventListener('beforeunload', event => {
+  if ([...entries.values()].some(entry => ['waiting', 'uploading'].includes(entry.state))) {
+    event.preventDefault();
+    event.returnValue = '';
+  }
+});
+restoreSession();

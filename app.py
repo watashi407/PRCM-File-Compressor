@@ -16,6 +16,7 @@ from urllib.parse import unquote, urlparse
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from compressor import CompressionError, MAXIMUM, compress
@@ -55,7 +56,8 @@ def allowed_hosts():
              'prcm-file-compressor.vercel.app'}
     # Vercel supplies exact deployment, branch, and production hostnames.
     # Keep host validation enabled instead of trusting every vercel.app site.
-    for key in ('VERCEL_URL', 'VERCEL_BRANCH_URL', 'VERCEL_PROJECT_PRODUCTION_URL'):
+    for key in ('VERCEL_URL', 'VERCEL_BRANCH_URL', 'VERCEL_PROJECT_PRODUCTION_URL',
+                'PUBLIC_HOSTNAME', 'RENDER_EXTERNAL_HOSTNAME', 'RAILWAY_PUBLIC_DOMAIN'):
         value = os.environ.get(key, '').strip()
         if value:
             hostname = urlparse(value if '://' in value else 'https://' + value).hostname
@@ -67,12 +69,20 @@ def allowed_hosts():
 
 app = FastAPI(title='PRCM Compressor', lifespan=lifespan)
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts())
+FRONTEND_ORIGINS = {'https://prcm-file-compressor.vercel.app'}
+FRONTEND_ORIGINS.update(origin.strip().rstrip('/') for origin in os.environ.get('FRONTEND_ORIGINS', '').split(',') if origin.strip())
+app.add_middleware(
+    CORSMiddleware, allow_origins=sorted(FRONTEND_ORIGINS),
+    allow_methods=['GET', 'POST', 'DELETE'],
+    allow_headers=['Content-Type', 'X-File-Name'],
+    expose_headers=['Content-Disposition'],
+)
 
 
 @app.middleware('http')
 async def local_requests(request: Request, call_next):
     origin = request.headers.get('origin')
-    if request.method not in ('GET', 'HEAD') and origin and urlparse(origin).netloc != request.headers.get('host'):
+    if request.method not in ('GET', 'HEAD', 'OPTIONS') and origin and urlparse(origin).netloc != request.headers.get('host') and origin not in FRONTEND_ORIGINS:
         from fastapi.responses import JSONResponse
         return JSONResponse({'detail': 'Upload files from the same address where you opened the app.'}, status_code=403)
     response = await call_next(request)
@@ -107,8 +117,23 @@ def health():
     return {'app': 'smallside', 'status': 'ok', 'target': 4_800_000, 'maximum': MAXIMUM}
 
 
+@app.get('/api/config')
+def client_config():
+    backend = os.environ.get('COMPRESSION_API_URL', '').strip().rstrip('/')
+    if backend:
+        parsed = urlparse(backend)
+        if parsed.scheme not in ('https', 'http') or not parsed.hostname or parsed.username or parsed.password or parsed.path or parsed.query or parsed.fragment:
+            raise HTTPException(503, 'The compression server address is not configured correctly.')
+        if parsed.scheme == 'http' and parsed.hostname not in ('localhost', '127.0.0.1', '::1'):
+            raise HTTPException(503, 'The compression server needs an HTTPS address.')
+    return {'api_url': backend, 'available': bool(backend) or os.environ.get('VERCEL') != '1',
+            'upload_limit': UPLOAD_LIMIT}
+
+
 @app.post('/api/compress', status_code=202)
 async def upload(request: Request):
+    if os.environ.get('VERCEL') == '1':
+        raise HTTPException(503, 'The compression server is not connected yet. Please try again later.')
     name = unquote(request.headers.get('x-file-name', 'file')).replace('\\', '/').split('/')[-1]
     name = ''.join(c for c in name if c.isprintable() and c not in '<>:"|?*').strip('. ')[:180] or 'file'
     cleanup()
