@@ -8,8 +8,12 @@ let uploadSummaryKey = '';
 let apiBase = '';
 let uploadLimit = 250_000_000;
 let configError = '';
+let connectionCheck = null;
+let lastConnectionSuccess = 0;
+let lastConnectionFailure = 0;
+let retryInProgress = false;
 const storageKey = 'prcm-compressor-jobs-v1';
-const configuration = loadConfiguration();
+let configuration = loadConfiguration();
 if (!['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)) {
   const privacyLabel = document.querySelector('.panel-footer > span:first-child');
   privacyLabel.lastChild.textContent = 'Files processed on this server';
@@ -81,17 +85,89 @@ function updateUploadArea() {
   $('.upload-limit').hidden = state !== 'idle';
 }
 async function loadConfiguration() {
+  configError = '';
   try {
-    const response = await fetch('/api/config');
-    const config = await response.json();
+    const {response, data: config} = await fetchJSON('/api/config', 15_000);
     if (!response.ok) throw new Error(config.detail || 'Could not connect to the compression service. Refresh to try again.');
     if (!config.available) throw new Error('The compression server is not connected yet. Please try again later.');
     apiBase = config.api_url || '';
     uploadLimit = config.upload_limit || uploadLimit;
   } catch (error) {
-    configError = error.message || 'Could not connect to the compression service. Refresh to try again.';
-    $('#service-notice').textContent = configError;
-    $('#service-notice').hidden = false;
+    configError = error instanceof TypeError || error.name === 'AbortError' || error instanceof SyntaxError
+      ? 'Could not connect to the compression service. Check your connection, then retry.'
+      : error.message || 'Could not connect to the compression service. Please retry.';
+    showServiceNotice(configError);
+  }
+}
+function showServiceNotice(message, connecting = false) {
+  $('#service-message').textContent = message;
+  $('#service-notice').hidden = false;
+  $('#retry-connection').disabled = connecting;
+  $('#retry-connection').textContent = connecting ? 'Connecting…' : 'Retry connection';
+}
+async function fetchJSON(url, timeout) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(url, {signal: controller.signal, cache: 'no-store'});
+    const data = await response.json();
+    return {response, data};
+  } finally {
+    clearTimeout(timer);
+  }
+}
+async function checkConnection(force = false) {
+  if (connectionCheck) return connectionCheck;
+  if (!force && Date.now() - lastConnectionSuccess < 15_000) return true;
+  if (!force && Date.now() - lastConnectionFailure < 15_000) return false;
+  // Probe the server before sending file bytes. A sleeping service can take time to start.
+  connectionCheck = (async () => {
+    const noticeTimer = setTimeout(() => showServiceNotice(
+      'The server may be waking up. This can take about a minute. Keep this page open; your selected files will wait here.', true
+    ), 1200);
+    try {
+      const {response, data} = await fetchJSON(api('/api/health'), 75_000);
+      if (!response.ok || data.status !== 'ok' || data.app !== 'smallside') throw new Error('Server unavailable');
+      lastConnectionSuccess = Date.now();
+      lastConnectionFailure = 0;
+      $('#service-notice').hidden = true;
+      return true;
+    } catch {
+      lastConnectionSuccess = 0;
+      lastConnectionFailure = Date.now();
+      showServiceNotice('Could not reach the server. It may be asleep or temporarily unavailable. Check your connection, then retry. Your selected files are still here.');
+      return false;
+    } finally {
+      clearTimeout(noticeTimer);
+    }
+  })();
+  try { return await connectionCheck; }
+  finally { connectionCheck = null; }
+}
+async function retryConnection() {
+  if (retryInProgress) return;
+  retryInProgress = true;
+  showServiceNotice('Reconnecting to the server. It may need a moment to wake up.', true);
+  try {
+    if (configError) {
+      configuration = loadConfiguration();
+      await configuration;
+      if (configError) return;
+    }
+    if (!await checkConnection(true)) return;
+    for (const entry of entries.values()) {
+      // Only resume uploads that never sent bytes. Failed transfers keep their own Try again button.
+      if (entry.connectionRetry && !entry.jobId && entry.file instanceof File) {
+        entry.connectionRetry = false;
+        entry.state = 'waiting';
+        entry.message = 'Waiting to upload';
+        paint(entry);
+      }
+    }
+    pumpQueue();
+    resumeChecks();
+  } finally {
+    retryInProgress = false;
   }
 }
 function api(path) { return apiBase + path; }
@@ -181,6 +257,7 @@ function paint(entry) {
   if (state === 'error' && entry.file instanceof File) {
     const retry = element('button', 'button retry', 'Try again');
     retry.addEventListener('click', () => {
+      if (entry.connectionRetry) { retryConnection(); return; }
       clearTimeout(entry.timer);
       entry.state = 'waiting';
       entry.message = 'Waiting to upload';
@@ -216,10 +293,11 @@ async function removeEntry(entry) {
   entries.delete(entry.id);
   refreshCount();
 }
-function fail(entry, message) {
+function fail(entry, message, connectionRetry = false) {
   entry.state = 'error';
   entry.result = undefined;
   entry.message = message;
+  entry.connectionRetry = connectionRetry;
   paint(entry);
   $('#announcer').textContent = `${entry.file.name}: ${message}`;
   pumpQueue();
@@ -229,12 +307,14 @@ async function poll(entry) {
   clearTimeout(entry.timer);
   entry.polling = true;
   try {
-    const response = await fetch(api(`/api/jobs/${entry.jobId}`));
+    const {response, data} = await fetchJSON(api(`/api/jobs/${entry.jobId}`), 20_000);
     if (!response.ok) {
       if (response.status === 404) return fail(entry, 'This file has expired. Choose it again.');
       throw new Error();
     }
-    const data = await response.json();
+    lastConnectionSuccess = Date.now();
+    lastConnectionFailure = 0;
+    if (!configError && !connectionCheck) $('#service-notice').hidden = true;
     Object.assign(entry, {state: data.status, progress: data.progress, message: data.message, detected: data.detected, result: data.result, failures: 0});
     paint(entry);
     if (data.status === 'done' || data.status === 'error') {
@@ -246,6 +326,7 @@ async function poll(entry) {
   } catch {
     entry.failures = (entry.failures || 0) + 1;
     entry.message = 'Connection interrupted. Reconnecting…';
+    showServiceNotice('The server is not responding. It may be waking up or your connection may have dropped. Retry to check your files.');
     paint(entry);
   } finally {
     entry.polling = false;
@@ -254,9 +335,13 @@ async function poll(entry) {
 }
 async function upload(entry) {
   await configuration;
-  if (configError) return fail(entry, configError);
+  if (configError) return fail(entry, configError, true);
   if (entry.file.size === 0) return fail(entry, 'This file is empty. Choose a file with content.');
   if (entry.file.size > uploadLimit) return fail(entry, `Choose a file smaller than ${size(uploadLimit)}.`);
+  entry.message = 'Connecting to the server. Your file is waiting here.';
+  paint(entry);
+  if (!await checkConnection()) return fail(entry, 'Server unavailable. Tap Retry connection above to continue with this file.', true);
+  entry.connectionRetry = false;
   const xhr = new XMLHttpRequest();
   xhr.open('POST', api('/api/compress'));
   xhr.timeout = 600_000;
@@ -270,6 +355,11 @@ async function upload(entry) {
     }
   };
   xhr.onload = () => {
+    if (xhr.status >= 500) {
+      lastConnectionSuccess = 0;
+      showServiceNotice('The server could not finish the upload. It may be waking up. Retry the connection, then use Try again on your file.');
+      return fail(entry, 'The server did not accept the upload. Your file is still selected; tap Try again.');
+    }
     if (xhr.status === 413) return fail(entry, 'This upload exceeds the server limit. Try a smaller file.');
     let data;
     try { data = JSON.parse(xhr.responseText); } catch { return fail(entry, 'The app could not read the response. Try again.'); }
@@ -281,8 +371,16 @@ async function upload(entry) {
     paint(entry);
     poll(entry);
   };
-  xhr.onerror = () => fail(entry, 'Could not upload. Check your connection and tap Try again.');
-  xhr.ontimeout = () => fail(entry, 'The upload timed out. Check your connection and tap Try again.');
+  xhr.onerror = () => {
+    lastConnectionSuccess = 0;
+    showServiceNotice('The connection was interrupted. The server may be waking up. Retry the connection, then use Try again on your file.');
+    fail(entry, 'Could not upload. Your file is still selected. Check your connection and tap Try again.');
+  };
+  xhr.ontimeout = () => {
+    lastConnectionSuccess = 0;
+    showServiceNotice('The upload timed out. Check your connection, then retry. Your file is still selected.');
+    fail(entry, 'The upload timed out. Check your connection and tap Try again.');
+  };
   xhr.send(entry.file);
 }
 function addFiles(files) {
@@ -304,6 +402,7 @@ dropzone.addEventListener('drop', event => { event.preventDefault(); dragDepth =
 $('#clear').addEventListener('click', () => {
   for (const entry of entries.values()) if (['done', 'error'].includes(entry.state)) removeEntry(entry);
 });
+$('#retry-connection').addEventListener('click', retryConnection);
 function resumeChecks() {
   if (document.hidden) return;
   for (const entry of entries.values()) if (entry.jobId && entry.state !== 'error') poll(entry);
@@ -318,3 +417,4 @@ window.addEventListener('beforeunload', event => {
   }
 });
 restoreSession();
+configuration.then(() => { if (!configError && apiBase) checkConnection(); });

@@ -23,7 +23,7 @@
 
     <section class="compressor" aria-label="File compressor">
       <div class="panel-header"><span class="panel-label"><span class="green-dot"></span> Auto compress</span><span class="target-pill">TARGET <strong>4.8 MB</strong></span></div>
-      <p class="service-notice" id="service-notice" role="status" hidden></p>
+      <div class="service-notice" id="service-notice" hidden><p id="service-message" role="status" aria-live="polite"></p><button class="button retry" id="retry-connection" type="button">Retry connection</button></div>
       <div class="dropzone" id="dropzone">
         <div class="file-illustration" aria-hidden="true"><div class="back-file"></div><div class="front-file"><svg viewBox="0 0 32 32"><path d="M16 7v18M7 16h18"/></svg></div><div class="mini-arrow"><svg viewBox="0 0 24 24"><path d="M7 7h4v4m6 6h-4v-4M11 11 6 6m7 7 5 5"/></svg></div></div>
         <div class="upload-status-icon" aria-hidden="true" hidden><svg class="success-check" viewBox="0 0 32 32"><path d="m8 16 5 5 11-12"/></svg><svg class="error-mark" viewBox="0 0 32 32"><path d="M16 8v10m0 6h.01"/></svg><span class="upload-spinner"></span></div>
