@@ -7,7 +7,7 @@ def test_production_domain_serves_the_app():
     client = TestClient(app, base_url='https://prcm-file-compressor.vercel.app')
     response = client.get('/')
     assert response.status_code == 200
-    assert 'PRCM Compressor home' in response.text
+    assert 'PRCM File Compressor home' in response.text
     assert client.get('/api/health').status_code == 200
     # Reaching the empty-upload validation proves the same-origin POST is accepted.
     assert client.post('/api/compress', content=b'', headers={

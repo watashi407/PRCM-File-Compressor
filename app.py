@@ -67,7 +67,7 @@ def allowed_hosts():
     return sorted(hosts)
 
 
-app = FastAPI(title='PRCM Compressor', lifespan=lifespan)
+app = FastAPI(title='PRCM File Compressor', lifespan=lifespan)
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts())
 FRONTEND_ORIGINS = {'https://prcm-file-compressor.vercel.app'}
 FRONTEND_ORIGINS.update(origin.strip().rstrip('/') for origin in os.environ.get('FRONTEND_ORIGINS', '').split(',') if origin.strip())
