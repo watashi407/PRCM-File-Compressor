@@ -12,7 +12,8 @@ self.onmessage = async ({data}) => {
   }
   if (data.type !== 'compress') return;
   try {
-    const result = await PRCMEngine.compress(data.file, (request) => new Promise((resolve, reject) => {
+    const operation = data.mode === 'pdf' ? PRCMEngine.convertToPDF : PRCMEngine.compress;
+    const result = await operation(data.mode === 'pdf' ? data.files : data.file, (request) => new Promise((resolve, reject) => {
       const id = ++sequence;
       requests.set(id, {resolve, reject});
       self.postMessage({type: 'raster', id, request});

@@ -1,5 +1,6 @@
 /* Canvas work stays on the UI thread for Safari support; archive/PDF work uses a worker. */
 window.PRCMRaster = async function raster(request, isCancelled = () => false) {
+  if (request.type === 'word') return PRCMWord(request.blob, isCancelled);
   let source, release = () => {};
   const check = () => { if (isCancelled()) throw new Error('Cancelled'); };
   let canvas;
@@ -36,7 +37,7 @@ window.PRCMRaster = async function raster(request, isCancelled = () => false) {
     if (!context) throw new Error('Picture compression is not supported in this browser.');
     const draw = () => {
       canvas.width = width; canvas.height = height;
-      if (request.mime === 'image/jpeg') { context.fillStyle = '#fff'; context.fillRect(0, 0, width, height); }
+      if (request.mime === 'image/jpeg' || request.outputType === 'image/jpeg') { context.fillStyle = '#fff'; context.fillRect(0, 0, width, height); }
       context.drawImage(source, 0, 0, width, height);
     };
     const encode = (type, quality) => new Promise((resolve, reject) => {
@@ -44,7 +45,7 @@ window.PRCMRaster = async function raster(request, isCancelled = () => false) {
       canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Your device could not encode this picture. Try a smaller image.')), type, quality);
     });
     draw();
-    const type = request.preserveType ? request.mime : request.mime === 'image/jpeg' || request.format === 'HEIC' ? 'image/jpeg' : 'image/webp';
+    const type = request.outputType || (request.preserveType ? request.mime : request.mime === 'image/jpeg' || request.format === 'HEIC' ? 'image/jpeg' : 'image/webp');
     if (!request.target) {
       const blob = await encode(type, request.quality ?? .8);
       check();

@@ -3,7 +3,7 @@ const input = $('#file-input'), dropzone = $('#dropzone'), queue = $('#queue');
 const entries = new Map();
 const initialHeading = $('#upload-heading').innerHTML;
 const MAXIMUM = 4_900_000, INPUT_LIMIT = 100_000_000, QUEUE_LIMIT = 200_000_000;
-let active = null;
+let active = null, mode = 'compress';
 const icons = {
   file: '<svg viewBox="0 0 24 24"><path d="M14 3H6v18h12V7l-4-4Z"/><path d="M14 3v5h4M9 12h6m-6 4h4"/></svg>',
   download: '<svg viewBox="0 0 24 24"><path d="M12 3v12m-4-4 4 4 4-4M5 16v5h14v-5"/></svg>',
@@ -24,9 +24,9 @@ function summary() {
   dropzone.dataset.state = state;
   $('.file-illustration').hidden = state !== 'idle';
   $('.upload-status-icon').hidden = state === 'idle';
-  if (state === 'idle') $('#upload-heading').innerHTML = initialHeading;
-  else $('#upload-heading').textContent = busy ? 'Making your file smaller…' : done ? (done === 1 ? 'Your file is ready!' : 'Your files are ready!') : 'Your file needs attention.';
-  $('#upload-description').textContent = busy ? 'Processing on your device. Keep this page open.' : done ? (errors ? 'Download the completed files below. Some files need your attention.' : `Compression complete. Download your ${done === 1 ? 'file' : 'files'} below.`) : errors ? 'Check the message below, then choose another file or try again.' : 'Images, PDFs, Word, and ZIP. Automatically detected.';
+  if (state === 'idle' && mode === 'compress') $('#upload-heading').innerHTML = initialHeading;
+  else $('#upload-heading').textContent = busy ? 'Preparing your file…' : done ? (done === 1 ? 'Your file is ready!' : 'Your files are ready!') : errors ? 'Your file needs attention.' : 'Choose pictures or a Word document.';
+  $('#upload-description').textContent = busy ? 'Processing on your device. Keep this page open.' : done ? (errors ? 'Download the completed files below. Some files need your attention.' : `All done. Download your ${done === 1 ? 'file' : 'files'} below.`) : errors ? 'Check the message below, then choose another file or try again.' : mode === 'pdf' ? 'Make a PDF without uploading your files.' : 'Images, PDFs, Word, and ZIP. Automatically detected.';
   const label = files.length ? 'Choose another file' : 'Choose files';
   $('#browse-label').textContent = label; input.setAttribute('aria-label', label);
   $('#view-downloads').hidden = !done;
@@ -68,7 +68,7 @@ function paint(entry) {
   } else if (state === 'error') {
     const retry = element('button', 'button retry', 'Try again');
     retry.addEventListener('click', () => {
-      entry.state = 'waiting'; entry.message = 'Waiting to compress'; entry.progress = 0;
+      entry.state = 'waiting'; entry.message = 'Waiting to process'; entry.progress = 0;
       paint(entry); pumpQueue();
     });
     actions.append(retry);
@@ -98,9 +98,9 @@ function pumpQueue() {
   const entry = [...entries.values()].find(item => item.state === 'waiting');
   if (!entry) return;
   active = entry;
-  entry.state = 'processing'; entry.message = 'Starting compression on your device'; paint(entry);
-  if (!entry.file.size) return fail(entry, 'This file is empty. Choose a file with content.');
-  if (entry.file.size > INPUT_LIMIT) return fail(entry, 'Choose a file of 100 MB or less.');
+  entry.state = 'processing'; entry.message = entry.mode === 'pdf' ? 'Preparing your PDF on this device' : 'Starting compression on your device'; paint(entry);
+  if (entry.files.some(file => !file.size)) return fail(entry, 'This file is empty. Choose a file with content.');
+  if (entry.files.some(file => file.size > INPUT_LIMIT)) return fail(entry, 'Choose a file of 100 MB or less.');
   let worker;
   try { worker = new Worker('/compression-worker.js'); }
   catch { return fail(entry, 'Your browser could not start compression. Try a current browser with JavaScript enabled.'); }
@@ -129,22 +129,35 @@ function pumpQueue() {
       paint(entry); $('#announcer').textContent = `${entry.file.name} is ready to download.`; pumpQueue();
     }
   };
-  worker.postMessage({type: 'compress', file: entry.file});
+  worker.postMessage({type: 'compress', mode: entry.mode, file: entry.files[0], files: entry.files});
 }
 function addFiles(files) {
   $('#selection-notice').hidden = true;
+  files = Array.from(files);
   let bytes = [...entries.values()].reduce((total, entry) => total + entry.file.size, 0);
-  for (const file of files) {
-    if (entries.size >= 10 || bytes + file.size > QUEUE_LIMIT || file.size > INPUT_LIMIT) {
+  let count = [...entries.values()].reduce((total, entry) => total + entry.files.length, 0);
+  const groups = mode === 'pdf' && $('#combine-pictures').checked ? [files] : files.map(file => [file]);
+  for (const group of groups) {
+    if (!group.length) continue;
+    const totalSize = group.reduce((total, file) => total + file.size, 0);
+    if (count + group.length > 10 || bytes + totalSize > QUEUE_LIMIT || group.some(file => file.size > INPUT_LIMIT)) {
       $('#selection-notice').textContent = 'Choose up to 10 files, 100 MB per file and 200 MB total. Clear finished files to make room.';
       $('#selection-notice').hidden = false; continue;
     }
-    bytes += file.size;
-    const entry = {id: crypto.randomUUID(), file, row: element('article', 'file-row'), state: 'waiting', message: 'Waiting to compress', progress: 0};
+    bytes += totalSize; count += group.length;
+    const file = group.length === 1 ? group[0] : {name: `Combined pictures (${group.length}): ${group.map(file => file.name).join(', ')}`, size: totalSize};
+    const entry = {id: crypto.randomUUID(), file, files: group, mode, row: element('article', 'file-row'), state: 'waiting', message: 'Waiting to process', progress: 0};
     entries.set(entry.id, entry); queue.prepend(entry.row); paint(entry);
   }
   pumpQueue();
 }
+document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => {
+  mode = button.dataset.mode;
+  document.querySelectorAll('[data-mode]').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+  $('#pdf-options').hidden = mode !== 'pdf';
+  $('#selection-notice').hidden = true;
+  summary();
+}));
 input.addEventListener('change', () => { addFiles(input.files); input.value = ''; });
 let dragDepth = 0;
 document.addEventListener('dragover', event => event.preventDefault());

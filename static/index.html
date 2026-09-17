@@ -8,6 +8,7 @@
   <link rel="icon" href="/logo.png" type="image/png">
   <link rel="apple-touch-icon" href="/logo.png">
   <link rel="stylesheet" href="/style.css">
+  <script src="/word.js" defer></script>
   <script src="/raster.js" defer></script>
   <script src="/app.js" defer></script>
 </head>
@@ -24,7 +25,16 @@
     </section>
 
     <section class="compressor" aria-label="File compressor">
-      <div class="panel-header"><span class="panel-label"><span class="status-dot"></span> Auto compress</span><span class="target-pill">TARGET <strong>4.8 MB</strong></span></div>
+      <div class="panel-header"><span class="panel-label"><span class="status-dot"></span> On your device</span><span class="target-pill">TARGET <strong>4.8 MB</strong></span></div>
+      <div class="mode-switch" role="group" aria-label="File action">
+        <button type="button" data-mode="compress" aria-pressed="true">Compress</button>
+        <button type="button" data-mode="pdf" aria-pressed="false">Convert to PDF</button>
+      </div>
+      <div id="pdf-options" class="pdf-options" hidden>
+        <p>Pictures and Word (.docx) to PDF, up to 4.9 MB.</p>
+        <label class="combine-option"><input id="combine-pictures" type="checkbox"> Combine selected pictures into one PDF</label>
+        <p class="word-note">Word creates a visual PDF copy. Text won't be selectable, and fonts or layout may differ. Review the PDF before sharing. For older .doc files, save as .docx first.</p>
+      </div>
       <p class="service-notice" id="selection-notice" role="status" aria-live="polite" hidden></p>
       <div class="dropzone" id="dropzone">
         <div class="file-illustration" aria-hidden="true"><div class="back-file"></div><div class="front-file"><svg viewBox="0 0 32 32"><path d="M16 7v18M7 16h18"/></svg></div><div class="mini-arrow"><svg viewBox="0 0 24 24"><path d="M7 7h4v4m6 6h-4v-4M11 11 6 6m7 7 5 5"/></svg></div></div>
@@ -48,7 +58,7 @@
 
     <section class="how" aria-label="How it works">
       <div><span class="step-number">01</span><h3>Choose your file</h3><p>Images, PDFs, Word documents,<br>and ZIP archives.</p></div>
-      <div><span class="step-number">02</span><h3>Compress on your device</h3><p>Aiming for 4.8 MB or less.<br>Some files cannot shrink enough.</p></div>
+      <div><span class="step-number">02</span><h3>Compress or make a PDF</h3><p>Processed on your device.<br>Some files cannot shrink enough.</p></div>
       <div><span class="step-number">03</span><h3>Download. Done.</h3><p>A smaller file, ready to go.<br>Every download 4.9 MB or less.</p></div>
     </section>
 

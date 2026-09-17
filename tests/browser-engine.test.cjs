@@ -5,6 +5,58 @@ const {zipSync, unzipSync, strToU8, zlibSync} = require('fflate');
 const {PDFDocument, PDFName, PDFRawStream} = require('pdf-lib');
 const {compress, detect, archiveInfo, unpack, pdfPixels, MAXIMUM} = require('../static/engine.js');
 const noRaster = () => { throw new Error('Unexpected image conversion'); };
+const {readFileSync} = require('node:fs');
+const {join} = require('node:path');
+const {convertToPDF} = require('../static/engine.js');
+const picture = name => new File([readFileSync(join(__dirname, 'fixtures', `${name}.jpg`))], `${name}.jpg`, {type: 'image/jpeg'});
+
+test('small pictures become real PDF pages in selection order with their aspect ratios', async () => {
+  const files = [picture('portrait'), picture('landscape')];
+  let calls = 0;
+  const raster = async request => {
+    assert.equal(request.outputType, 'image/jpeg');
+    assert.ok(request.target < MAXIMUM / 2);
+    assert.deepEqual(await request.blob.arrayBuffer(), await files[calls++].arrayBuffer());
+    return {blob: request.blob};
+  };
+  const result = await convertToPDF(files, raster);
+  assert.equal(result.name, 'combined-pictures.pdf');
+  assert.equal(result.blob.type, 'application/pdf');
+  assert.ok(result.blob.size < MAXIMUM);
+  const pdf = await PDFDocument.load(await result.blob.arrayBuffer());
+  assert.deepEqual(pdf.getPages().map(page => [page.getWidth(), page.getHeight()]), [[120, 180], [180, 120]]);
+  const single = await convertToPDF([files[0]], async request => ({blob: request.blob}));
+  assert.equal(single.name, 'portrait.pdf');
+  assert.equal((await PDFDocument.load(await single.blob.arrayBuffer())).getPageCount(), 1);
+});
+
+test('Word conversion validates the archive before rendering and returns a PDF', async () => {
+  const parts = {'[Content_Types].xml': strToU8('<Types/>'), 'word/document.xml': strToU8('<document/>')};
+  const file = new File([zipSync(parts)], 'word.docx');
+  let rendered = false;
+  const result = await convertToPDF([file], async request => {
+    if (request.type === 'word') { rendered = true; return {pages: [picture('portrait')]}; }
+    assert.ok(rendered); return {blob: request.blob};
+  });
+  assert.equal(result.name, 'word.pdf');
+  assert.match(result.note, /Text is not selectable/);
+  assert.equal((await PDFDocument.load(await result.blob.arrayBuffer())).getPageCount(), 1);
+  parts['word/vbaProject.bin'] = strToU8('macro');
+  await assert.rejects(convertToPDF([new File([zipSync(parts)], 'macro.docm')], noRaster), /macro-enabled/);
+  await assert.rejects(convertToPDF([new File([zipSync({'note.txt': strToU8('text')})], 'archive.zip')], noRaster), /ZIP archive/);
+  await assert.rejects(convertToPDF([new File([strToU8('text')], 'old.doc')], noRaster), /older .doc/);
+});
+
+test('conversion rejects mixed picture groups and excessive page counts', async () => {
+  await assert.rejects(convertToPDF([new File([strToU8('bad')], 'bad.jpg'), picture('portrait')], noRaster), /not a supported still picture/);
+  await assert.rejects(convertToPDF(Array(41).fill(picture('portrait')), noRaster), /40 pictures/);
+});
+
+test('PDF conversion cannot offer an output over the maximum', async () => {
+  const file = picture('portrait');
+  const oversizedJPEG = new Blob([await file.arrayBuffer(), new Uint8Array(MAXIMUM)]);
+  await assert.rejects(convertToPDF([file], async () => ({blob: oversizedJPEG})), /cannot reach 4.9 MB/);
+});
 
 test('size boundary returns unchanged bytes and never pads files', async () => {
   for (const size of [1, 4_800_000, MAXIMUM]) {

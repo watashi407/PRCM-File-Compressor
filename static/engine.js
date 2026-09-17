@@ -277,7 +277,53 @@
     progress(100, 'Ready to download');
     return {blob, name: outputName, note, format: detected.format};
   }
-  const engine = {compress, detect, archiveInfo, unpack, crc32, pdfPixels, imageDimensions, TARGET, MAXIMUM, INPUT_LIMIT};
+  async function imagesToPDF(files, raster, progress = () => {}, outputName) {
+    if (!files.length || files.length > 40) throw new Error('Choose between 1 and 40 pictures or document pages.');
+    const budget = Math.floor((TARGET - 60_000) / files.length);
+    const doc = await pdf.PDFDocument.create();
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!file.size || file.size > INPUT_LIMIT) throw new Error('Each picture must contain data and be 100 MB or less.');
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const kind = detect(bytes);
+      if (kind.kind !== 'image') throw new Error(`${file.name || 'This file'} is not a supported still picture. Choose JPEG, PNG, WebP, or HEIC.`);
+      const dimensions = imageDimensions(bytes, kind.format);
+      if (dimensions && dimensions[0] * dimensions[1] > 40_000_000) throw new Error('This picture exceeds the 40 megapixel browser limit.');
+      progress(10 + i / files.length * 85, `Creating PDF page ${i + 1} of ${files.length}`);
+      const rendered = await raster({blob: new Blob([bytes], {type: kind.mime}), mime: kind.mime, format: kind.format, outputType: 'image/jpeg', target: budget});
+      const image = await doc.embedJpg(await rendered.blob.arrayBuffer());
+      const scale = Math.min(1, 842 / Math.max(image.width, image.height));
+      const page = doc.addPage([image.width * scale, image.height * scale]);
+      page.drawImage(image, {x: 0, y: 0, width: page.getWidth(), height: page.getHeight()});
+    }
+    const blob = new Blob([await doc.save()], {type: 'application/pdf'});
+    if (blob.size > MAXIMUM) throw tooLarge();
+    return {blob, name: outputName || (files.length === 1 ? nameFor(files[0].name, 'pdf').replace('-compressed.pdf', '.pdf') : 'combined-pictures.pdf'), format: 'PDF', note: `${files.length} ${files.length === 1 ? 'picture' : 'pictures'} converted to PDF in selection order. Picture quality may be reduced.`};
+  }
+  async function convertToPDF(files, raster, progress = () => {}) {
+    if (!files.length) throw new Error('Choose a picture or Word document.');
+    if (files.length > 1) return imagesToPDF(files, raster, progress);
+    const file = files[0];
+    if (!file.size || file.size > INPUT_LIMIT) throw new Error('Choose a nonempty file of 100 MB or less.');
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const kind = detect(bytes);
+    if (kind.kind === 'pdf') return compress(file, raster, progress);
+    if (kind.kind === 'image') return imagesToPDF(files, raster, progress);
+    if (kind.kind === 'zip') {
+      const info = archiveInfo(bytes);
+      if (!info.word) throw new Error('Choose pictures or a Word .docx document. A ZIP archive cannot be converted to PDF.');
+      if (info.signed) throw new Error('This document is digitally signed. Export it to PDF in Word to retain signature information.');
+      const parts = unpack(bytes, info);
+      if (Object.keys(parts).some(name => name.toLowerCase() === 'word/vbaproject.bin')) throw new Error('Save this macro-enabled document as .docx before converting.');
+      progress(5, 'Preparing Word pages on your device');
+      const rendered = await raster({type: 'word', blob: file});
+      const result = await imagesToPDF(rendered.pages, raster, progress, nameFor(file.name, 'pdf').replace('-compressed.pdf', '.pdf'));
+      result.note = 'Visual PDF copy of your Word document. Text is not selectable; fonts and page layout may differ. Review before sharing.';
+      return result;
+    }
+    throw new Error('PDF conversion supports still pictures and Word .docx documents. Save older .doc files as .docx first.');
+  }
+  const engine = {compress, convertToPDF, imagesToPDF, detect, archiveInfo, unpack, crc32, pdfPixels, imageDimensions, TARGET, MAXIMUM, INPUT_LIMIT};
   if (typeof module === 'object') module.exports = engine;
   else root.PRCMEngine = engine;
 })(typeof self === 'object' ? self : globalThis);

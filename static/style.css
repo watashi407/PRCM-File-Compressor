@@ -77,6 +77,15 @@ body{padding-bottom:env(safe-area-inset-bottom)}
 
 /* Accent colors echo the supplied blue, red, and yellow logo. */
 :root{--red:#e51d32;--yellow:#ffdf35}
+.mode-switch{display:flex;gap:4px;padding:4px;background:#edf2fc;border-radius:10px;margin-bottom:18px}
+.mode-switch button{flex:1;border:0;border-radius:7px;background:transparent;color:#526684;min-height:44px;padding:10px;font-size:14px;font-weight:600}
+.mode-switch button[aria-pressed="true"]{background:var(--blue);color:white;box-shadow:0 2px 5px #2457c522}
+.pdf-options{margin:0 2px 18px;font-size:13px;line-height:1.6;color:#526684}
+.pdf-options p{margin:0 0 10px}
+.combine-option{display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer;color:#1e293b}
+.combine-option input{width:19px;height:19px;flex-shrink:0;accent-color:var(--blue)}
+.pdf-options .word-note{margin:10px 0 0;font-size:12px;padding:10px 12px;background:#fff9df;border-radius:8px;color:#775d17}
+.word-render-frame{position:fixed;left:-12000px;top:0;width:1200px;height:1600px;border:0;pointer-events:none}
 .spark,.footer-star{color:var(--red)}
 .target-pill strong{background:#fff5c7;color:#765900}
 .back-file{background:#fff2a6;border-color:#edda77}

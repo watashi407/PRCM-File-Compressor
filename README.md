@@ -14,6 +14,14 @@ The app targets 4,800,000 bytes and only offers downloads of 4,900,000 bytes or 
 
 No compression method can guarantee an arbitrary file will fit under 4.9 MB while preserving its contents. Large or complex PDFs, photo-heavy documents, and incompressible ZIPs may need manual changes.
 
+## Convert to PDF
+
+Choose **Convert to PDF** before selecting files. JPEG, PNG, WebP, and HEIC pictures become PDF pages, including pictures already below the size limit. Enable **Combine selected pictures into one PDF** to create one PDF in selection order; otherwise each file gets its own download. Transparent areas become white and picture quality may be reduced to meet the 4.9 MB limit.
+
+Word `.docx` files produce a visual PDF copy entirely in the browser. Text is not selectable, and fonts, pagination, fields, charts, or complex layouts may differ from Word. Review the output before sharing; use Word's own PDF export when exact layout or accessibility is required. Older `.doc` files must first be saved as `.docx`. Signed documents, macros, linked external pictures, and embedded HTML content are rejected. Up to 40 rendered pages are supported. Existing PDFs use the normal PDF compression path.
+
+Word rendering runs in a temporary, separate same-origin frame with external requests and document scripts blocked. That frame is removed on completion or cancellation. This works within the authorized Zoho People embedding policy.
+
 ## Phone and desktop behavior
 
 Native file selection, drag and drop, original/output MB indicators, cancellation, retry, and individual downloads. One file processes at a time in a worker, with image encoding through browser canvas. The app accepts up to 10 files, 100 MB per file, 200 MB selected in total, and 120 MB of expanded archive contents. JPEG/PNG/extended WebP headers are checked against a 40 megapixel input limit before decoding. Device memory can impose lower practical limits.
